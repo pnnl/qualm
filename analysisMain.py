@@ -12,7 +12,7 @@ if __name__ == "__main__":
     #pre = pp.PreProcess("../../Data/data-v2-pmu-04-21-parsed.xlsx", 'Xtra Cyc/Insn')
     #pre.setColumns(range(2,5),range(32,58))
 
-    #MCA stuff
+    # PMU / MCA stuff
     pcols=range(32,58)
     mcols=range(58,83)
     
