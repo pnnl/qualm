@@ -5,7 +5,7 @@ import seaborn as sns
 import statsmodels.api as sm
 from time import time
 from collections import defaultdict
-
+from pprint import pprint
 import sys
 
 from sklearn.preprocessing import PolynomialFeatures
@@ -26,8 +26,8 @@ from sklearn.ensemble import RandomForestRegressor
 
 from sklearn.feature_selection import SelectFromModel
 
-from sklearn.cluster import AffinityPropagation
-from sklearn.cluster import KMeans
+from sklearn.cluster import AffinityPropagation,SpectralClustering
+from sklearn.cluster import KMeans, DBSCAN
 
 
 from matplotlib import rc
@@ -38,9 +38,10 @@ rc('text', usetex=True)
 
 class UnSupervised():
     
-    def __init__(self,X,c):
+    def __init__(self,X,y,c):
         
         self.X = MinMaxScaler().fit_transform(X)
+        self.y = y
         self.colNames = c
         
     def doPCA(self,X):
@@ -123,4 +124,52 @@ class UnSupervised():
                 f.write("\n--------------------------------------------------------\n")
             
         f.close()
-       
+        
+        
+    
+    def featureClustering(self):
+        
+        #X_train, X_val, y_train, y_val = train_test_split(self.X, self.y, test_size=0.5, random_state=0)
+        
+        #self.X = self.X[self.y < 10.0]
+        print("Total training data : ", self.X.shape[0])
+        #clus = SpectralClustering(n_clusters=3).fit(X_train)
+        
+        #length = np.sqrt((self.X**2).sum(axis=1))[:,None]
+        #self.X = self.X / length
+        self.X = self.X[:,[0,2,3,4]]
+        clus = KMeans(n_clusters=3, random_state=0).fit(self.X)
+        #clus = DBSCAN(eps=0.6, min_samples=10).fit(X_train)
+        #clus = AffinityPropagation().fit(X_train)
+            
+        labels = clus.labels_
+        
+        # Number of clusters in labels, ignoring noise if present.
+        n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+        n_noise_ = list(labels).count(-1)
+        
+        print('Estimated number of clusters: %d' % n_clusters_)
+        print('Estimated number of noise points: %d' % n_noise_)    
+        
+        for idx in range(n_clusters_):
+            print("Label = ",idx, " Label Count = ", len(np.where(labels == idx)[0]))          
+        
+        plt.figure()
+        
+        for idx in range(n_clusters_):
+            indices = np.where(labels == idx)[0]
+            sns.kdeplot(self.y[indices],label=("Label = "+str(idx)))
+            #plt.subplot(n_clusters_,1,idx+1)
+            #plt.hist(self.y[indices],bins=20)
+            plt.title(("Label = "+str(idx)))
+ 
+        plt.xlabel('Target Value',fontsize=22)
+        plt.ylabel('PDF value',fontsize=22)
+        
+        ax=plt.gca()
+        ax.xaxis.set_tick_params(labelsize=15)
+        ax.yaxis.set_tick_params(labelsize=15)    
+        plt.legend(fontsize=22)
+        plt.grid()
+        plt.show()        
+        plt.show()        

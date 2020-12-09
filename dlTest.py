@@ -2,36 +2,32 @@ import numpy as np
 import supervised as sup
 import unsupervised as usup
 import preprocess as pp
-from time import time
+import dlModels as dlm
+import sys
 
 if __name__ == "__main__":
-    
-    start = time()
     
     # PMU / MCA stuff
     pcols=range(42,61)
     mcols=range(65,90)
     
     target_func = 'Mean Cyc/Insn'
+    lo = 0.0
+    hi = 200.0
 
     pre = pp.PreProcess("./data/TimedLBR_SuperBlocks-pmu-mca-v2-winnow.xlsx", target_func)
     pre.setColumns(icols=range(2,5),pcols=pcols,mcols=mcols) 
-    #pre.setLimits(0.0, 50.00)
-    
+    pre.setLimits(lo, hi)
     X,y,c_names,sblk_names,indices = pre.prepareData()
-    #pre.plotClassImbalance()
+    logTrans = False
+    classes,thresh = pre.createClassificationData(85)
     
-    classes = pre.createClassificationData(85)
-        
-    sp = sup.Supervised(X,y,c_names,logTrans = False, cls=classes)
-    sp.setParamsMultiStage(0.2,0.5,0.2,0.2)
-
-    #sp.classification_full_data()
-    sp.multiStageClassReg()
-
-    print("Total time taken : ", time()-start)
+    dl =dlm.dlModels(X,classes,c_names,logTrans = logTrans)
+    #dl.buildFCNRegressor()
+    dl.buildFCNClassifier()
     
     
-    
+    #sp =sup.Supervised(X,y,c_names,logTrans = logTrans)
+    #sp.randomForestRegressionModels(1000,8)
 
 

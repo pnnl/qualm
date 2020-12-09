@@ -3,21 +3,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from time import time
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import sys
 from scipy.stats import percentileofscore
 
 
 class PreProcess():
     
-    def __init__(self,srcFile,objFunc):
+    def __init__(self,srcFile,objFunc,skipRows=1):
         
         self.srcFile = srcFile
         self.lFlag = False
         self.obj = objFunc
+        self.srows = skipRows
         self.X = None
         self.y = None
-        self.c = None        
+        self.c = None 
+        
         
        
     def setLimits(self,L,U):
@@ -36,7 +38,20 @@ class PreProcess():
         
         print("Reading Excel file....")
         start = time()
-        df = pd.read_excel(self.srcFile,skiprows=1)
+        df = None
+        
+        if ((self.srcFile).endswith('.xlsx')):
+            df = pd.read_excel(self.srcFile,skiprows=self.srows)
+        elif ((self.srcFile).endswith('.csv')):
+            #dTypeDict = {28: 'float64', 30: 'float64', 33: 'float64', 34: 'float64', 36: 'float64', 42: 'float64', 51: 'float64', 52: 'float64'}
+            #dTypeDict = {28: 'float64'}
+            #df = pd.read_csv(self.srcFile,dtype=dTypeDict,header=0)   
+            df = pd.read_csv(self.srcFile) 
+            print('NaN counts ')
+            for col in df.columns:
+                print(col, " ",df[col].isna().sum())
+            print("\n\n")    
+
         print("Read Excel file in ", round(time()-start,3), " seconds.")
         
         if (self.lFlag == True):
@@ -49,12 +64,14 @@ class PreProcess():
 
         #Do normalization by number of instructions here
         #df = df.dropna(axis = 'index', how='any')
+        self.df_full = df
         ind = df['Order/New'].values
         dfw = df.iloc[:,self.idCols]
         
         if (self.pmuCols):
             print("Collecting PMU features and normalizing by PMU Insn.")
-            dfx_p = df.iloc[:,self.pmuCols].div(df['PMU Insn'], axis=0)
+            #dfx_p = df.iloc[:,self.pmuCols].div(df['LBR Insn'], axis=0)
+            dfx_p = df.iloc[:,self.pmuCols]
             dfx = dfx_p
         if (self.mcaCols):
             print("Collecting MCA features.")
@@ -73,10 +90,10 @@ class PreProcess():
         nan_count = dfx.isnull().sum(axis = 0)
         drop_cols = []
         for col in nan_count.index:
-            if (nan_count[col] > 100):
+            if (nan_count[col] > 10000):
                 drop_cols.append(col)
         print(drop_cols)
-        dfx = dfx.drop(columns=drop_cols)
+        #dfx = dfx.drop(columns=drop_cols)
         colNames = np.array(list(dfx.columns.values.tolist()))
         
         X = dfx.values
@@ -214,7 +231,7 @@ class PreProcess():
         print ("Total number of ones : ", np.sum(self.classes))
         print ("Total number of samples : ", len(self.classes))
         
-        return self.classes
+        return (self.classes, thresh)
         
     def plotClassImbalance(self):
         
@@ -233,3 +250,141 @@ class PreProcess():
         ax.xaxis.set_tick_params(labelsize=15)
         ax.yaxis.set_tick_params(labelsize=15)     
         plt.show()         
+        
+        
+    def write_fp_fn_data(self, ind_gl, thresh, ind_fp, ind_fn, y_vals_fp, y_vals_fn, top_cols):
+        
+               
+        order_fp = [ind_gl[idx] for idx in ind_fp]
+        order_fn = [ind_gl[idx] for idx in ind_fn]
+        
+        diff_fp = (thresh - y_vals_fp)
+        diff_fn = (y_vals_fn - thresh)
+        
+        dict_fp = dict(zip(order_fp, diff_fp))
+        dict_fn = dict(zip(order_fn, diff_fn))
+        
+        reorder_fp = [x for _,x in sorted(zip(diff_fp,order_fp),reverse=True)]
+        reorder_fn = [x for _,x in sorted(zip(diff_fn,order_fn),reverse=True)]
+        
+        reorder_fp_new = reorder_fp[:15]
+        reorder_fn_new = reorder_fn[:15]
+        
+        #print(reorder_fp_new)
+        #print(reorder_fn_new)
+        
+       
+        df_fp_full = pd.DataFrame(columns=self.df_full.columns)
+        df_fn_full = pd.DataFrame(columns=self.df_full.columns)
+
+         
+        for idx in range(len(reorder_fp_new)):
+            extracted_df = self.df_full[self.df_full['Order/New'] == reorder_fp_new[idx]]
+            df_fp_full = df_fp_full.append(extracted_df)
+            
+            #print(extracted_df[['Order/New',self.obj]])
+            #print(df_fp_full[['Order/New',self.obj]])
+            #print("\n")
+            #print(extracted_df[self.obj], dict_fp[reorder_fp_new[idx]])
+        
+        #print("\n\n")
+        
+        for idx in range(len(reorder_fn_new)):
+            extracted_df = self.df_full[self.df_full['Order/New'] == reorder_fn_new[idx]]
+            df_fn_full = df_fn_full.append(extracted_df)
+            
+            #print(extracted_df[['Order/New',self.obj]])
+            #print(df_fn_full[['Order/New',self.obj]])
+            #print("\n")
+            #print(extracted_df[self.obj], dict_fn[reorder_fn_new[idx]])
+        
+        #print(df_fp[['Order/New',self.obj]])
+        #print(df_fn[['Order/New',self.obj]])
+        
+        pmu_feat, mca_feat = self.get_additional_columns()
+        print("Total new columns : ",(len(pmu_feat)+len(mca_feat)))
+        cols_all = self.df_full.columns.tolist()
+        cols_id = [cols_all[idx] for idx in self.idCols]
+        col_obj = [self.obj]
+        
+                
+        df_fp_full['Blank'] = ""
+        frames1 = [df_fp_full[cols_id],df_fp_full['Blank'],df_fp_full[col_obj],df_fp_full['Blank'],df_fp_full[top_cols]]
+        frames2 = [df_fp_full['Blank'],df_fp_full[pmu_feat],df_fp_full['Blank'],df_fp_full[mca_feat]]
+        df_fp = pd.concat((frames1+frames2),axis=1)
+
+        df_fn_full['Blank'] = ""
+        frames1 = [df_fn_full[cols_id],df_fn_full['Blank'],df_fn_full[col_obj],df_fn_full['Blank'],df_fn_full[top_cols]]
+        frames2 = [df_fn_full['Blank'],df_fn_full[pmu_feat],df_fn_full['Blank'],df_fn_full[mca_feat]]
+        df_fn = pd.concat((frames1+frames2),axis=1)        
+        
+        df_fp.to_csv("fp_new.csv", index=False)
+        df_fn.to_csv("fn_new.csv", index=False)
+        
+                
+        
+    def get_additional_columns(self):
+        
+        colH_PMU = OrderedDict( [
+            # Frontend
+            ('FRONTEND_RETIRED.L1I_MISS_PS',              'l1i-miss'),
+            ('FRONTEND_RETIRED.ITLB_MISS_PS',             'itlb-miss'),
+            ('BACLEARS.ANY',                              'baclear'),
+            ('FRONTEND_RETIRED.DSB_MISS_PS',              'dsb-miss'),
+        
+            # Bad Spec
+            ('BR_MISP_RETIRED.ALL_BRANCHES_PS',           'br-misp'),
+            
+            # Backend
+            ('MEM_LOAD_RETIRED.FB_HIT_PS',                'fb-hit'),
+            ('MEM_LOAD_RETIRED.L1_MISS_PS',               'l1-miss'),
+            ('DTLB_LOAD_MISSES.STLB_HIT',                 'stlb-hit-ld'),
+            ('MEM_INST_RETIRED.STLB_MISS_LOADS_PS',       'stlb-miss-ld'),
+            ('DTLB_STORE_MISSES.STLB_HIT',                'stlb-hit-st'),
+            ('MEM_INST_RETIRED.STLB_MISS_STORES_PS',      'stlb-miss-st'),
+            ('MEM_LOAD_RETIRED.L2_MISS_PS',               'l2-miss'),
+            ('MEM_LOAD_L3_HIT_RETIRED.XSNP_HITM_PS',      'l3-hitm'),
+            ('MEM_LOAD_RETIRED.L3_MISS_PS',               'l3-miss'),
+            ('PARTIAL_RAT_STALLS.SCOREBOARD',             'rat-stalls'),
+            ('EXE_ACTIVITY.BOUND_ON_STORES',              'st-bnd'),
+            ('MACHINE_CLEARS.COUNT',                      'clears'),
+            ('ARITH.DIVIDER_ACTIVE',                      'div'),
+            
+            # Retire
+            ('IDQ.MS_UOPS',                               'ms-uops'),
+        ] )
+        
+        colH_PMUx = { x : None  for x in colH_PMU.values() }
+        colL_PMU_shrt = colH_PMUx.keys()
+
+        colL_MCA = [
+            'MCA-min',
+            'MCA-sim',
+            'CPI-LBR-min',
+            'CPI-LBR-med',
+            'CPI-MCA-min',
+            'CPI-MCA-sim',
+            'Xcpi-Wd-min',
+            'Xcpi-Wd-sim',
+            'Lat-Wd',
+            'Lat-Wp',
+            'Lat-E',
+            'Lat-Wr',
+            'LatT',
+            'Lat0',
+            'Lat1',
+            'StallP-RAT',
+            'StallP-RCU',
+            'StallP-SCHEDQ',
+            'StallP-LQ',
+            'StallP-SQ',
+            'StallP-GROUP',
+            'Resource Pressure',
+            'Register Dependencies',
+            'Memory Dependencies',
+            'Cycles w Backend Pressure',
+            'Ld',
+            'St' ]
+        
+        return (colL_PMU_shrt,colL_MCA)
+        

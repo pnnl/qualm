@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.api as sm
 from time import time
-from collections import defaultdict
+from collections import defaultdict, Counter
+from imblearn.under_sampling import *
+from imblearn.over_sampling import *
 
 import sys
 
@@ -25,10 +27,13 @@ from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 from xgboost import XGBClassifier
 from xgboost import XGBRegressor
 
-import sklearn.metrics
+import sklearn.metrics as metrics
 from sklearn.metrics import r2_score,mean_squared_error,confusion_matrix,accuracy_score
 from sklearn.metrics import precision_score,recall_score,f1_score
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_validate
+from mlxtend.evaluate import bias_variance_decomp
+
 
 
 from matplotlib import rc
@@ -198,7 +203,7 @@ class Supervised():
         rf_reg = RandomForestRegressor(n_estimators=nTrees, max_depth=dDepth, random_state=0)
         print("Fitting the RF model")
         rf_reg.fit(x_train, y_train)
-        #print(rf_reg.feature_importances_)    
+        print(rf_reg.feature_importances_)    
         y_pred_val_rf = rf_reg.predict(x_val)
         
         self.ytrue = y_val
@@ -212,15 +217,43 @@ class Supervised():
             self.ypred = y_pred_val_rf            
        
         print("R2 for random forest model : ", r2_score(self.ytrue,self.ypred))                  
-        print("RMS error Random Forest : ", np.sqrt(mean_squared_error(y_val,y_pred_val_rf)))    
+        print("RMS error Random Forest : ", np.sqrt(mean_squared_error(self.ytrue,self.ypred)))    
      
-        print("Doing Cross Validation")
-        scorers = ['r2', 'neg_mean_absolute_error', 'neg_mean_squared_error']
-        scores = cross_validate(rf_reg, self.X, self.y, cv=5, scoring=scorers)
-        for key,item in scores.items():
-            print(key)
-            print(-np.mean(item))
-            print("")
+        #self.plot_scatter()
+        #print("Doing Cross Validation")
+        #scorers = ['r2', 'neg_mean_absolute_error', 'neg_mean_squared_error']
+        #scores = cross_validate(rf_reg, self.X, self.y, cv=5, scoring=scorers)
+        #for key,item in scores.items():
+            #print(str(key) + ": " + str(-np.mean(item)))
+    
+  
+    def XGBRegressionModels(self,nTrees,dDepth):
+
+
+        print("Number of examples / features overall : ", self.X.shape)
+
+        #Split into training validation and test
+        x_train, x_val, y_train, y_val = train_test_split(self.X, self.y, test_size=0.25, random_state=0)
+
+        #Train the RF regression model on training set
+        xg_reg = XGBRegressor(n_estimators=nTrees, max_depth=dDepth, random_state=0)
+        xg_reg = self.regression_task(xg_reg, x_train, y_train, x_val, y_val)          
+        print("Fitting the XGBoost model")
+        xg_reg.fit(x_train, y_train)
+        y_pred_val_xg = xg_reg.predict(x_val)
+
+        self.ytrue = y_val
+        self.ypred = y_pred_val_xg
+
+        if (self.logTransform == True):
+            y_val = np.exp(y_val)-1.00
+            y_pred_val_xg = np.exp(y_pred_val_xg)-1.00
+
+            self.ytrue = y_val
+            self.ypred = y_pred_val_xg            
+
+        print("R2 for XGBoost model : ", r2_score(self.ytrue,self.ypred))                  
+        print("RMS error XGBoost : ", np.sqrt(mean_squared_error(self.ytrue,self.ypred))) 
         
     def setParamsMultiStage(self,a,b,g,d):
         
@@ -316,7 +349,8 @@ class Supervised():
         
         return model
         
-        
+    
+    
     def regression_task(self, model,x_train,y_train,x_test,y_test):
         
         print("Model training.")
@@ -359,5 +393,190 @@ class Supervised():
             y_test_l1 = np.exp(y_test_l1)-1.00
             y_pred_l1 = np.exp(y_pred_l1)-1.00
                 
-        print("RMS error for the model : ", np.sqrt(mean_squared_error(y_test_l1,y_pred_l1)))    
+        print("RMS error for the model : ", np.sqrt(mean_squared_error(y_test_l1,y_pred_l1))) 
+        
+        #self.ytrue = y_test_l1
+        #self.ypred = y_pred_l1
+        #self.plot_scatter()
+
+        
+    def classification_full_data(self):
+        
+        #Create split for train
+        print("Splitting Train/ Test")
+        x_train1, x_test, l_train1, l_test , y_train, y_test = train_test_split(self.X, self.classes, self.y, test_size=self.alpha, random_state=1)
+        print("#Samples for classification training and testing before correction : ",len(l_train1),len(l_test))
+        
+        #print(sorted(Counter(l_train1).items()))
+        #new_sampler =  KMeansSMOTE()
+        #x_train, l_train = new_sampler.fit_sample(x_train1, l_train1)
+        x_train = x_train1
+        l_train = l_train1
+        
+        print("#Samples for classification training and testing after correction : ",len(l_train),len(l_test))
+        print(sorted(Counter(l_train).items()))
+        
+        #print("RF model for classification")
+        #rf_class = RandomForestClassifier(n_estimators=1000,random_state=0)
+        #rf_class = self.classification_task(rf_class,x_train,l_train,x_test,l_test)
+        #print(rf_class.feature_importances_)
+        
+        #print("Extra Trees model for classification")
+        #et_class = ExtraTreesClassifier(n_estimators=1000, random_state=0)
+        #et_class = self.classification_task(et_class,x_train,l_train,x_test,l_test)
+        #print(et_class.feature_importances_)
+
+        print("XGBoost model for classification") 
+        xg_class = XGBClassifier(n_estimators=1000,seed=0)
+        xg_class = self.classification_task(xg_class,x_train,l_train,x_test,l_test)
+        #print(xg_class.feature_importances_)
+        
+        
+    def get_fp_fn(self):
+        
+        indices_full = range(len(self.classes))
+        x_train, x_test, l_train, l_test , y_train, y_test,ind_train,ind_test = train_test_split(self.X, self.classes, self.y, indices_full, test_size=self.alpha, random_state=1)
+
+        model = XGBClassifier(n_estimators=1000,seed=0)
+        #model = RandomForestClassifier(n_estimators=1000,random_state=0)
+        print("Model training.")
+        model.fit(x_train,l_train)
+        pred_labels = model.predict(x_test)
+        top_feat = np.flip(np.argsort(model.feature_importances_))[:10]
+        top_col_names = self.colNames[top_feat]
+        print(top_col_names)
+        print(model.feature_importances_[top_feat])
+        
+        fp_inds = []
+        fn_inds = []
+        y_vals_fp = []
+        y_vals_fn = []
+        
+        for idx in range(len(l_test)):
+            
+            if ((l_test[idx] == 0 ) and (pred_labels[idx] == 1)):
+                fp_inds.append(ind_test[idx])
+                y_vals_fp.append(y_test[idx])
+                
+            if ((l_test[idx] == 1 ) and (pred_labels[idx] == 0)):
+                fn_inds.append(ind_test[idx])
+                y_vals_fn.append(y_test[idx])
+                
+        print("Number of false positives : ", len(fp_inds))
+        print("Number of false negatives : ", len(fn_inds))              
+            
+        conf_mat = confusion_matrix(l_test,pred_labels)
+        print("Confusion matrix for the current model : ")
+        print(conf_mat)        
+    
+        return (fp_inds,fn_inds,y_vals_fp,y_vals_fn,top_col_names)    
+    
+    
+    def roc_auc(self):
+        
+        #Create split for train
+        print("Splitting Train/ Test")
+        x_train, x_test, l_train, l_test , y_train, y_test = train_test_split(self.X, self.classes, self.y, test_size=self.alpha, random_state=1)
+               
+        print("RF model for classification")
+        rf_class = RandomForestClassifier(n_estimators=1000,random_state=0)
+        rf_class.fit(x_train,l_train)
+        metrics.plot_roc_curve(rf_class, x_test, l_test)
+        plt.show()                                        
+        
+       
+        print("Extra Trees model for classification")
+        et_class = ExtraTreesClassifier(n_estimators=1000, random_state=0)
+        et_class.fit(x_train,l_train)
+        metrics.plot_roc_curve(et_class, x_test, l_test)
+        plt.show()         
+        
+        print("XGBoost model for classification") 
+        xg_class = XGBClassifier(n_estimators=1000,seed=0)
+        xg_class.fit(x_train,l_train)
+        metrics.plot_roc_curve(xg_class, x_test, l_test)
+        plt.show()         
+        
+    def prec_recall(self):
+        
+        #Create split for train
+        print("Splitting Train/ Test")
+        x_train, x_test, l_train, l_test , y_train, y_test = train_test_split(self.X, self.classes, self.y, test_size=self.alpha, random_state=1)
+               
+        print("RF model for classification")
+        rf_class = RandomForestClassifier(n_estimators=1000,random_state=0)
+        rf_class.fit(x_train,l_train)
+        metrics.plot_precision_recall_curve(rf_class, x_test, l_test)
+        plt.show() 
+        
+       
+        print("Extra Trees model for classification")
+        et_class = ExtraTreesClassifier(n_estimators=1000, random_state=0)
+        et_class.fit(x_train,l_train)
+        metrics.plot_precision_recall_curve(et_class, x_test, l_test)
+        plt.show() 
+        
+        
+        print("XGBoost model for classification") 
+        xg_class = XGBClassifier(n_estimators=1000,seed=0)
+        xg_class.fit(x_train,l_train)
+        metrics.plot_precision_recall_curve(xg_class, x_test, l_test)
+        plt.show() 
+        
+    def bias_variance_decomp_regression(self):
+        
+        x_tr, x_tst, y_tr, y_tst = train_test_split(self.X, self.y, test_size=0.25, random_state=0)
+        
+        print("Random Forest Regressor")
+        rf_reg = RandomForestRegressor(n_estimators=100,max_depth=6)
+        avg_expected_loss, avg_bias, avg_var = bias_variance_decomp(rf_reg,x_tr,y_tr,x_tst,y_tst,loss='mse',random_seed=1)
+        print('Average expected loss: %.3f' % avg_expected_loss)
+        print('Average bias: %.3f' % avg_bias)
+        print('Average variance: %.3f' % avg_var)  
+        print("\n\n")
+        
+
+        print("Extra Trees Regressor")
+        et_reg = ExtraTreesRegressor(n_estimators=100,max_depth=6)
+        avg_expected_loss, avg_bias, avg_var = bias_variance_decomp(et_reg,x_tr,y_tr,x_tst,y_tst,loss='mse',random_seed=1)
+        print('Average expected loss: %.3f' % avg_expected_loss)
+        print('Average bias: %.3f' % avg_bias)
+        print('Average variance: %.3f' % avg_var)  
+        print("\n\n")
+        
+
+        print("XGBoost Regressor")
+        xg_reg = XGBRegressor(n_estimators=100,max_depth=6)
+        avg_expected_loss, avg_bias, avg_var = bias_variance_decomp(xg_reg,x_tr,y_tr,x_tst,y_tst,loss='mse',random_seed=1)
+        print('Average expected loss: %.3f' % avg_expected_loss)
+        print('Average bias: %.3f' % avg_bias)
+        print('Average variance: %.3f' % avg_var)  
+        print("\n\n")        
+        
+        
+    def run_bias_variance_tradeoff_regression(self):
+        
+        x_tr, x_tst, y_tr, y_tst = train_test_split(self.X, self.y, test_size=0.2, random_state=0)
+        
+        n_est = np.linspace(100,1000,num=19,endpoint=True,dtype=int)
+        bias = np.zeros(len(n_est))
+        var = np.zeros(len(n_est))
+        loss = np.zeros(len(n_est))
+        
+        start = time()
+        
+        for idx in range(len(n_est)):
+            
+            print("Iteration : ",idx)
+            print("Time = ", time()-start)
+            reg = RandomForestRegressor(n_estimators=n_est[idx],max_depth=8)
+            x_tr1, x_tst1, y_tr1, y_tst1 = train_test_split(x_tr, y_tr, test_size=0.5, random_state=idx+1)
+            loss1, bias1, var1 = bias_variance_decomp(reg,x_tr1,y_tr1,x_tst,y_tst,loss='mse',random_seed=idx+11)
+            bias[idx] = bias1
+            var[idx] = var1
+            loss[idx] = loss1
+        
+        print("Time taken for all runs = ", time()-start)    
+        np.savez("bv_rf.npz",n_est=n_est,loss=loss,bias=bias,var=var)    
+        print("Done saving arrays.")
         
