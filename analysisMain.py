@@ -16,14 +16,14 @@ if __name__ == "__main__":
     #pcols=range(42,61)
     #mcols=range(65,90)
     
-    pcols = range(7,26)
-    mcols = range(28,53)
+    pcols = range(9,28)
+    mcols = range(30,55)
     target_func = 'Xtra Cyc/Insn'
     lo = 0.0
     hi = 200.0
 
     #pre = pp.PreProcess("./data/TimedLBR_SuperBlocks-pmu-mca-v2-winnow.xlsx", target_func)
-    pre = pp.PreProcess("./data/expanded_unique-winnow_final.csv", target_func)
+    pre = pp.PreProcess("./data/dataset-large-duplicate-winnow.csv", target_func)
     pre.setColumns(icols=range(2,5),pcols=pcols,mcols=mcols)
     pre.setLimits(lo, hi)
     X2,y2,c_names2,sblk_names2,indices2 = pre.prepareData()

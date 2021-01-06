@@ -43,9 +43,6 @@ class PreProcess():
         if ((self.srcFile).endswith('.xlsx')):
             df = pd.read_excel(self.srcFile,skiprows=self.srows)
         elif ((self.srcFile).endswith('.csv')):
-            #dTypeDict = {28: 'float64', 30: 'float64', 33: 'float64', 34: 'float64', 36: 'float64', 42: 'float64', 51: 'float64', 52: 'float64'}
-            #dTypeDict = {28: 'float64'}
-            #df = pd.read_csv(self.srcFile,dtype=dTypeDict,header=0)   
             df = pd.read_csv(self.srcFile) 
             print('NaN counts ')
             for col in df.columns:
@@ -70,7 +67,7 @@ class PreProcess():
         
         if (self.pmuCols):
             print("Collecting PMU features and normalizing by PMU Insn.")
-            #dfx_p = df.iloc[:,self.pmuCols].div(df['LBR Insn'], axis=0)
+            dfx_p = df.iloc[:,self.pmuCols].div(df['LBR Insn'], axis=0)
             dfx_p = df.iloc[:,self.pmuCols]
             dfx = dfx_p
         if (self.mcaCols):
@@ -83,6 +80,8 @@ class PreProcess():
             dfx = pd.concat([dfx_p, dfx_m], axis=1)
         
         dfy = df[self.obj]
+        x_shape = dfx.shape
+        y_shape = dfy.shape
        
         dfw['Name'] = dfw['Superblock Module']+"-"+dfw['Start IP']+"-"+dfw['End IP']
      
@@ -90,10 +89,10 @@ class PreProcess():
         nan_count = dfx.isnull().sum(axis = 0)
         drop_cols = []
         for col in nan_count.index:
-            if (nan_count[col] > 10000):
+            if (nan_count[col] > 48000):
                 drop_cols.append(col)
-        print(drop_cols)
-        #dfx = dfx.drop(columns=drop_cols)
+        #print(drop_cols)
+        dfx = dfx.drop(columns=drop_cols)
         colNames = np.array(list(dfx.columns.values.tolist()))
         
         X = dfx.values
@@ -124,9 +123,9 @@ class PreProcess():
         X = np.delete(X,all_zind_cols,axis=1)  
         newColNames = np.delete(colNames,all_zind_cols)
            
-        print("Dimensions of original data : ", df.shape)
-        print(dfx.head())      
-        print(dfy.head())    
+        print("Dimensions of original data : ", x_shape,y_shape)
+        #print(dfx.head())      
+        #print(dfy.head())    
         print('Dimensions of feature matrix and target : ',X.shape,y.shape)
         print("Any NaNs in features : ", np.isnan(X).any())
         print("Any NaNs in target : ", np.isnan(X).any())
