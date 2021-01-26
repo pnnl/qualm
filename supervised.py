@@ -15,11 +15,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
 
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score, cross_validate, KFold
 
 from sklearn.feature_selection import mutual_info_regression
 
-from sklearn.linear_model import RidgeCV, LassoCV, Ridge, Lasso
+from sklearn.linear_model import Ridge, Lasso
 from sklearn.linear_model import LinearRegression
 
 from sklearn.ensemble import RandomForestClassifier,ExtraTreesClassifier
@@ -65,8 +65,11 @@ class Supervised():
     
     def correlationAnalysis(self,cor_type = 'Corr', k = 20):
           
-
+        k = min(k,self.X.shape[1])
+        print("k-value : ", k)
         imp_order = None
+        feat = []
+        correl = []
         
         if (cor_type == 'Corr'):
             
@@ -83,26 +86,33 @@ class Supervised():
             print("Correlation ordering : ")
             imp_order = (np.argsort(corrs_raw.values)[::-1])
             
-            for idx in range(15):
-                print(self.colNames[imp_order[idx]]," : ",round(self.corrs[idx],3))
+            for idx in range(k):
+                feat.append(self.colNames[imp_order[idx]])
+                correl.append(round(self.corrs[idx],3))
                 
         elif (cor_type == "MI"):
             mi_raw = mutual_info_regression(self.X,self.y)
             self.corrs = np.sort(mi_raw)[::-1]
-        
-     
-        #Do filtering if needed
-        Xred = None
-        if (k > 0):
             
-            print("Doing filtering based on correlations.")
-            if ( k > self.X.shape[1]):
-                sys.exit("Reduced number of features must be less than total number of features.")
-            else:
-                imp_ord_red = imp_order[:k]
-                Xred = self.X[:,imp_ord_red]
+            print("MI ordering : ")
+            imp_order = (np.argsort(mi_raw)[::-1])
+            
+            for idx in range(k):
+                feat.append(self.colNames[imp_order[idx]])
+                correl.append(round(self.corrs[idx],3))
+     
+        #Do feature reduction if needed
+        #Xred = None
+        #if (k > 0):
+            
+            #print("Doing filtering based on correlations.")
+            #if ( k > self.X.shape[1]):
+                #sys.exit("Reduced number of features must be less than total number of features.")
+            #else:
+                #imp_ord_red = imp_order[:k]
+                #Xred = self.X[:,imp_ord_red]
                 
-        return Xred
+        return (feat,correl)
     
     def plotCorrelations(self):
         
@@ -177,6 +187,32 @@ class Supervised():
         print("RMS error Ridge : ", np.sqrt(mean_squared_error(y_val, y_pred_val_ridge)))
         print("RMS error Lasso : ", np.sqrt(mean_squared_error(y_val, y_pred_val_lasso)))
     
+    
+    def linModelsCV(self):
+        ols = LinearRegression()
+        ridge = Ridge(alpha=1.0)
+        lasso = Lasso(alpha=1.0)
+        
+        scoring = ('neg_root_mean_squared_error','r2')
+        print("\n")
+        print("OLS model for regression")
+        ols_scores = cross_validate(ols,self.X, self.y, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("R2 : ", np.mean(ols_scores['test_r2']))
+        print("RMSE : ", -np.mean(ols_scores['test_neg_root_mean_squared_error']))
+        
+        print("\n")
+        print("Ridge model for regression")
+        ridge_scores = cross_validate(ridge,self.X, self.y, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("R2 : ", np.mean(ridge_scores['test_r2']))
+        print("RMSE : ", -np.mean(ridge_scores['test_neg_root_mean_squared_error']))
+        
+        print("\n")
+        print("Lasso model for regression")
+        lasso_scores = cross_validate(lasso,self.X, self.y, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("R2 : ", np.mean(lasso_scores['test_r2']))
+        print("RMSE : ", -np.mean(lasso_scores['test_neg_root_mean_squared_error']))        
+        
+    
     def plot_scatter(self):
         
         plt.figure()
@@ -226,7 +262,36 @@ class Supervised():
         #for key,item in scores.items():
             #print(str(key) + ": " + str(-np.mean(item)))
     
-  
+    def ETRegressionModels(self,nTrees,dDepth):
+
+
+        print("Number of examples / features overall : ", self.X.shape)
+
+        #Split into training validation and test
+        x_train, x_val, y_train, y_val = train_test_split(self.X, self.y, test_size=self.alpha, random_state=0)
+
+        #Train the RF regression model on training set
+        xg_reg = ExtraTreesRegressor(n_estimators=nTrees, max_depth=dDepth, random_state=0)
+        xg_reg = self.regression_task(xg_reg, x_train, y_train, x_val, y_val)          
+        print("Fitting the XGBoost model")
+        xg_reg.fit(x_train, y_train)
+        y_pred_val_xg = xg_reg.predict(x_val)
+
+        self.ytrue = y_val
+        self.ypred = y_pred_val_xg
+
+        if (self.logTransform == True):
+            y_val = np.exp(y_val)-1.00
+            y_pred_val_xg = np.exp(y_pred_val_xg)-1.00
+
+            self.ytrue = y_val
+            self.ypred = y_pred_val_xg            
+
+        print("R2 for XGBoost model : ", r2_score(self.ytrue,self.ypred))                  
+        print("RMS error XGBoost : ", np.sqrt(mean_squared_error(self.ytrue,self.ypred))) 
+        
+        self.plot_scatter()
+        
     def XGBRegressionModels(self,nTrees,dDepth):
 
 
@@ -364,7 +429,7 @@ class Supervised():
             y_pred = np.exp(y_pred)-1.00
                 
         print("RMS error for the model : ", np.sqrt(mean_squared_error(y_test,y_pred)))    
-     
+        print('RMS error / Mean(target) ration : ', np.sqrt(mean_squared_error(y_test,y_pred))/np.std(self.y))
         return model    
     
     def combined_task(self,c_model,r_model,x_test,l_test,y_test):
@@ -400,11 +465,11 @@ class Supervised():
         #self.plot_scatter()
 
         
-    def classification_full_data(self):
+    def classification_allModels(self):
         
         #Create split for train
         print("Splitting Train/ Test")
-        x_train1, x_test, l_train1, l_test , y_train, y_test = train_test_split(self.X, self.classes, self.y, test_size=self.alpha, random_state=1)
+        x_train1, x_test, l_train1, l_test = train_test_split(self.X, self.classes, test_size=self.alpha, random_state=1)
         print("#Samples for classification training and testing before correction : ",len(l_train1),len(l_test))
         
         #print(sorted(Counter(l_train1).items()))
@@ -413,24 +478,119 @@ class Supervised():
         x_train = x_train1
         l_train = l_train1
         
-        print("#Samples for classification training and testing after correction : ",len(l_train),len(l_test))
-        print(sorted(Counter(l_train).items()))
-        
-        #print("RF model for classification")
-        #rf_class = RandomForestClassifier(n_estimators=1000,random_state=0)
-        #rf_class = self.classification_task(rf_class,x_train,l_train,x_test,l_test)
-        #print(rf_class.feature_importances_)
-        
-        #print("Extra Trees model for classification")
-        #et_class = ExtraTreesClassifier(n_estimators=1000, random_state=0)
-        #et_class = self.classification_task(et_class,x_train,l_train,x_test,l_test)
-        #print(et_class.feature_importances_)
+        #print("#Samples for classification training and testing after correction : ",len(l_train),len(l_test))
+        #print(sorted(Counter(l_train).items()))
 
-        print("XGBoost model for classification") 
-        xg_class = XGBClassifier(n_estimators=1000,seed=0)
-        xg_class = self.classification_task(xg_class,x_train,l_train,x_test,l_test)
-        #print(xg_class.feature_importances_)
+        start = time()
+        print("\n")
+        print("RF model for classification")
+        rf_class = RandomForestClassifier(n_estimators=500,random_state=0)
+        rf_class = self.classification_task(rf_class,x_train,l_train,x_test,l_test)
+        print(rf_class.feature_importances_)
+        print("Time taken = ", time()-start)
         
+        start = time()
+        print("\n")
+        print("Extra Trees model for classification")
+        et_class = ExtraTreesClassifier(n_estimators=500, random_state=0)
+        et_class = self.classification_task(et_class,x_train,l_train,x_test,l_test)
+        print(et_class.feature_importances_)
+        print("Time taken = ", time()-start)
+
+        start = time()
+        print("\n")
+        print("XGBoost model for classification") 
+        xg_class = XGBClassifier(n_estimators=500,seed=0)
+        xg_class = self.classification_task(xg_class,x_train,l_train,x_test,l_test)
+        print(xg_class.feature_importances_)
+        print("Time taken = ", time()-start)
+        
+    def regression_allRFModels(self):
+        
+        #Create split for train
+        print("Splitting Train/ Test")
+        x_train1, x_test, y_train1, y_test = train_test_split(self.X, self.y, test_size=self.alpha, random_state=1)
+        #print("#Samples for classification training and testing before correction : ",len(l_train1),len(l_test))
+        
+        #print(sorted(Counter(l_train1).items()))
+        #new_sampler =  KMeansSMOTE()
+        #x_train, l_train = new_sampler.fit_sample(x_train1, l_train1)
+        x_train = x_train1
+        y_train = y_train1
+        
+        #print("#Samples for classification training and testing after correction : ",len(l_train),len(l_test))
+        #print(sorted(Counter(l_train).items()))
+
+        print("\n")
+        print("RF model for regression")
+        rf_reg = RandomForestRegressor(n_estimators=1000,max_depth=8,random_state=100)
+        rf_reg = self.regression_task(rf_reg,x_train,y_train,x_test,y_test)
+        #print(rf_reg.feature_importances_)
+        
+        print("\n")
+        print("Extra Trees model for regression")
+        et_reg = ExtraTreesRegressor(n_estimators=1000,max_depth=8, random_state=100)
+        et_reg = self.regression_task(et_reg,x_train,y_train,x_test,y_test)
+        #print(et_reg.feature_importances_)
+
+        print("\n")
+        print("XGBoost model for regression") 
+        xg_reg = XGBRegressor(n_estimators=1000,max_depth=8,seed=100)
+        xg_reg = self.regression_task(xg_reg,x_train,y_train,x_test,y_test)
+        #print(xg_reg.feature_importances_)
+    
+   
+    def rf_models_CV_Reg(self):
+        
+        scoring = ('neg_root_mean_squared_error','r2')
+        print("\n")
+        print("RF model for regression")
+        rf_reg = RandomForestRegressor(n_estimators=500,max_depth=6,random_state=100)
+        rf_reg_scores = cross_validate(rf_reg,self.X, self.y, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("R2 : ", np.mean(rf_reg_scores['test_r2']))
+        print("RMSE : ", -np.mean(rf_reg_scores['test_neg_root_mean_squared_error']))
+        
+        print("\n")
+        print("Extra Trees model for regression")
+        et_reg = ExtraTreesRegressor(n_estimators=500,max_depth=6, random_state=100)
+        et_reg_scores = cross_validate(et_reg,self.X, self.y, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("R2 : ", np.mean(et_reg_scores['test_r2']))
+        print("RMSE : ", -np.mean(et_reg_scores['test_neg_root_mean_squared_error']))        
+
+        print("\n")
+        print("XGBoost model for regression") 
+        xg_reg = XGBRegressor(n_estimators=500,max_depth=6,seed=100)
+        xg_reg_scores = cross_validate(xg_reg,self.X, self.y, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("R2 : ", np.mean(xg_reg_scores['test_r2']))
+        print("RMSE : ", -np.mean(xg_reg_scores['test_neg_root_mean_squared_error']))        
+        
+
+    def rf_models_CV_class(self):
+        
+        scoring = ('f1','precision','recall')
+        print("\n")
+        print("RF model for classification")
+        rf_class = RandomForestClassifier(n_estimators=500,max_depth=6,random_state=100)
+        rf_class_scores = cross_validate(rf_class,self.X, self.classes, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("F1 : ", np.mean(rf_class_scores['test_f1']))
+        print("PRECISION : ", np.mean(rf_class_scores['test_precision']))
+        print("RECALL : ", np.mean(rf_class_scores['test_recall']))
+        
+        print("\n")
+        print("Extra Trees model for classification")
+        et_class = ExtraTreesClassifier(n_estimators=500,max_depth=6, random_state=100)
+        et_class_scores = cross_validate(et_class,self.X, self.classes, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("F1 : ", np.mean(et_class_scores['test_f1']))
+        print("PRECISION : ", np.mean(et_class_scores['test_precision']))
+        print("RECALL : ", np.mean(et_class_scores['test_recall']))
+        
+        print("\n")
+        print("XGBoost model for classification") 
+        xg_class = XGBClassifier(n_estimators=500,max_depth=6,seed=100)
+        xg_class_scores = cross_validate(xg_class,self.X, self.classes, scoring=scoring, cv=KFold(n_splits=5,shuffle=True))
+        print("F1 : ", np.mean(xg_class_scores['test_f1']))
+        print("PRECISION : ", np.mean(xg_class_scores['test_precision']))
+        print("RECALL : ", np.mean(xg_class_scores['test_recall'])) 
         
     def get_fp_fn(self):
         

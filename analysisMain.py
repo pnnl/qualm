@@ -6,31 +6,34 @@ import sys
 
 if __name__ == "__main__":
     
-    #pre = pp.PreProcess("../../Data/data-v2-pmu-03-10-parsed.xlsx", 'Xtra Cyc/Insn')
-    #pre.setColumns(range(2,5),range(32,175))
-    
-    #pre = pp.PreProcess("../../Data/data-v2-pmu-04-21-parsed.xlsx", 'Xtra Cyc/Insn')
-    #pre.setColumns(range(2,5),range(32,58))
 
-    # PMU / MCA stuff
+    # PMU / MCA cols
+    
+    #Small-Unique
     #pcols=range(42,61)
     #mcols=range(65,90)
     
+    #Large - Unique and Duplicate
     pcols = range(9,28)
     mcols = range(30,55)
-    target_func = 'Xtra Cyc/Insn'
+    
+    
+    #target_func = 'Xtra Cyc/Insn'
+    target_func = 'Mean Cyc/Insn'
     lo = 0.0
-    hi = 200.0
+    hi = 500.0
 
-    #pre = pp.PreProcess("./data/TimedLBR_SuperBlocks-pmu-mca-v2-winnow.xlsx", target_func)
-    pre = pp.PreProcess("./data/dataset-large-duplicate-winnow.csv", target_func)
+    #pre = pp.PreProcess("./data/dataset-small-unique-winnow.xlsx", target_func)
+    pre = pp.PreProcess("./data/dataset-large-unique-winnow.csv", target_func)
     pre.setColumns(icols=range(2,5),pcols=pcols,mcols=mcols)
     pre.setLimits(lo, hi)
     X2,y2,c_names2,sblk_names2,indices2 = pre.prepareData()
+    print("Target function : ", target_func)
+    print("Min = ", np.min(y2), " Med = ", np.median(y2), " Max = ", np.max(y2), " Mean = ",np.mean(y2), " Std = ",np.std(y2) )
     #classes, thresh = pre.createClassificationData(90)    
 
     #sp = sup.Supervised(X2,y2,c_names2,logTrans = False,cls=classes)
-    #sp.classification_full_data()
+    #sp.regression_allModels()
     
     #fp_inds,fn_inds,y_vals_fp,y_vals_fn,top_feat = sp.get_fp_fn()
     #pre.write_fp_fn_data(indices2, thresh, fp_inds, fn_inds, y_vals_fp, y_vals_fn,top_feat)

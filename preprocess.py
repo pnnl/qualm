@@ -44,11 +44,7 @@ class PreProcess():
             df = pd.read_excel(self.srcFile,skiprows=self.srows)
         elif ((self.srcFile).endswith('.csv')):
             df = pd.read_csv(self.srcFile) 
-            print('NaN counts ')
-            for col in df.columns:
-                print(col, " ",df[col].isna().sum())
-            print("\n\n")    
-
+            
         print("Read Excel file in ", round(time()-start,3), " seconds.")
         
         if (self.lFlag == True):
@@ -68,7 +64,7 @@ class PreProcess():
         if (self.pmuCols):
             print("Collecting PMU features and normalizing by PMU Insn.")
             dfx_p = df.iloc[:,self.pmuCols].div(df['LBR Insn'], axis=0)
-            dfx_p = df.iloc[:,self.pmuCols]
+            #dfx_p = df.iloc[:,self.pmuCols]
             dfx = dfx_p
         if (self.mcaCols):
             print("Collecting MCA features.")
@@ -141,9 +137,9 @@ class PreProcess():
     
         plt.figure()
         plt.hist(self.y,bins=nBins,density=True)
-        plt.axvline(x=0.79,color='k',linewidth=3.0)
+        #plt.axvline(x=0.79,color='k',linewidth=3.0)
         plt.grid()
-        plt.title('Histogram of the target function  ',fontsize = 36)
+        #plt.title('Histogram of the target function  ',fontsize = 36)
         plt.xlabel('Value of the target function ',fontsize=32) #r'$\frac{\sigma}{\mu}$'
         plt.ylabel('Probability density function value',fontsize=32)
         ax=plt.gca()
@@ -151,6 +147,9 @@ class PreProcess():
         ax.yaxis.set_tick_params(labelsize=22)     
         plt.show()
     
+    def get_target(self):
+        
+        return self.y
     
     def distance_analysis(self,pmu,pmu_u,tar,sb_names,ind):
         

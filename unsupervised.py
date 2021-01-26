@@ -53,7 +53,7 @@ class UnSupervised():
         
         # Standardizing the features
         x = StandardScaler().fit_transform(self.X)   
-        pca = PCA(n_components=100)
+        pca = PCA(n_components=40)
         pC = pca.fit_transform(x)
     
         sigma = pca.explained_variance_ratio_
@@ -84,22 +84,23 @@ class UnSupervised():
         #df.columns = cols
         corrs = df.corr()
         print(corrs.shape)
+        print(np.round(corrs,2))
         
         #Clustermap using seaborn
         #corrs_nonan = np.nan_to_num(corrs.values)
         #sns.set(color_codes=True)
         #sns.clustermap(corrs,figsize=(13, 13))
-        #plt.savefig("out.pdf")
+        #plt.savefig("clus.png")
         
         #Try different clustering methods
     
-        #clus = KMeans(n_clusters=15, random_state=0).fit(np.transpose(X))
-        #f = open("./clustering_pmu_kmeans.txt","w")
-        #f.write("Clustering info (k-means (16 clusters requested) with Euclidean distance) : \n")
+        clus = KMeans(n_clusters=8, random_state=0).fit(np.transpose(self.X))
+        f = open("./clustering_pmu_kmeans.txt","w")
+        f.write("Clustering info (k-means (8 clusters requested) with Euclidean distance) : \n")
         
-        clus = AffinityPropagation(affinity='precomputed').fit(corrs)
-        f = open("./clustering_pmu_corr.txt","w")
-        f.write("Clustering info (Affinity Propagation with correlation based similarity) : \n")
+        #clus = AffinityPropagation(affinity='precomputed').fit(corrs)
+        #f = open("./clustering_pmu_corr.txt","w")
+        #f.write("Clustering info (Affinity Propagation with correlation based similarity) : \n")
         
         #clus = AffinityPropagation().fit(np.transpose(X))
         #f = open("./clustering_pmu_dist.txt","w")    
