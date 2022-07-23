@@ -30,6 +30,8 @@ interpretability.
 References
 -----------------------------------------------------------------------------
 
+* Arun Sathanur, Nathan R. Tallent, P. Konsor, K. Koyanagi, R. McLaughlin, J. Olivas, and M. Chynoweth, "QuaL²M (QuaLM): Learning quantitative performance of latency-sensitive code," in Proc. of the 2022 IEEE Intl. Parallel and Distributed Processing Symp. Workshops (17th Intl. Workshop on Automatic Performance Tuning), May 2022
+
 
 Details
 -----------------------------------------------------------------------------
