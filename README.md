@@ -7,7 +7,7 @@ QuaL²M (QuaLM): Quantitative Learned Latency Model
 =============================================================================
 
 **Home**:
-  - https://gitlab.pnnl.gov/perf-lab/qualm
+  - https://github.com/pnnl/qualm
 
 
 **About**: QuaL²M (QuaLM), or Quantitative Learned Latency Model, is
