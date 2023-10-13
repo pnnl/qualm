@@ -1,6 +1,6 @@
--*-Mode: markdown;-*-
+<!-- -*-Mode: markdown;-*- -->
 
-$Id$
+<!-- $Id$ -->
 
 
 QuaL²M (QuaLM): Quantitative Learned Latency Model
