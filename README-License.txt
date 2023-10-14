@@ -1,5 +1,5 @@
                             QuaL²M (QuaLM)
-                    gitlab.pnnl.gov/perf-lab/qualm
+                        github.com/pnnl/qualm
 
 
 Copyright ((c)) 2021, Battelle Memorial Institute
